@@ -9,5 +9,13 @@ wheels/
 # Virtual environments
 .venv
 
+# Local environment variables
+.env
+.env.*
+!.env.example
+
 # Local data files
 data/*
+
+# Generated reports
+outputs/*
