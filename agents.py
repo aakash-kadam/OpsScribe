@@ -27,7 +27,7 @@ load_dotenv()
 
 
 DEFAULT_MODEL = "gpt-5.5"
-DEFAULT_AI_KEY_HEADER = "Authorization"
+DEFAULT_AI_KEY_HEADER = "api-key"
 ANALYSIS_COLUMNS = [
     "case_number",
     "severity",
@@ -133,7 +133,7 @@ class GenericEndpointChatModel(BaseChatModel):
         if self._uses_responses_payload():
             payload: dict[str, Any] = {
                 "model": self.model,
-                "input": [serialize_responses_input(message) for message in messages],
+                "input": serialize_responses_input(messages),
             }
         else:
             payload = {
@@ -189,10 +189,10 @@ class GenericEndpointChatModel(BaseChatModel):
 
 
 def require_ai_key() -> str:
-    """Read the LLM API key from AI_KEY."""
-    api_key = os.getenv("AI_KEY")
+    """Read the LLM API key from AI_KEY or GROVE_API_KEY."""
+    api_key = os.getenv("AI_KEY") or os.getenv("GROVE_API_KEY")
     if not api_key:
-        raise RuntimeError("Missing AI_KEY environment variable.")
+        raise RuntimeError("Missing AI_KEY or GROVE_API_KEY environment variable.")
     return api_key
 
 
@@ -219,26 +219,45 @@ def serialize_message(message: BaseMessage) -> dict[str, Any]:
     return payload
 
 
-def serialize_responses_input(message: BaseMessage) -> dict[str, Any]:
+def serialize_responses_input(messages: list[BaseMessage]) -> list[dict[str, Any]]:
     """Convert LangChain messages into Responses API-style input items."""
-    if isinstance(message, ToolMessage):
-        return {
-            "type": "function_call_output",
-            "call_id": message.tool_call_id,
-            "output": str(message.content or ""),
-        }
+    input_items = []
+    function_call_ids = set()
 
-    payload = serialize_message(message)
-    if payload.get("tool_calls"):
-        tool_call = payload["tool_calls"][0]
-        return {
-            "type": "function_call",
-            "call_id": tool_call.get("id"),
-            "name": tool_call.get("name"),
-            "arguments": json.dumps(tool_call.get("args", {})),
-        }
+    for message in messages:
+        if isinstance(message, ToolMessage):
+            call_id = message.tool_call_id
+            if call_id not in function_call_ids:
+                continue
 
-    return {"role": payload["role"], "content": payload["content"]}
+            input_items.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": str(message.content or ""),
+                }
+            )
+            continue
+
+        payload = serialize_message(message)
+        tool_calls = payload.get("tool_calls") or []
+        if tool_calls:
+            for tool_call in tool_calls:
+                call_id = str(tool_call.get("id"))
+                function_call_ids.add(call_id)
+                input_items.append(
+                    {
+                        "type": "function_call",
+                        "call_id": call_id,
+                        "name": tool_call.get("name"),
+                        "arguments": json.dumps(tool_call.get("args", {})),
+                    }
+                )
+            continue
+
+        input_items.append({"role": payload["role"], "content": payload["content"]})
+
+    return input_items
 
 
 def extract_message_data(response_data: dict[str, Any]) -> dict[str, Any]:

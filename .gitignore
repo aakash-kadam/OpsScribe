@@ -16,6 +16,3 @@ wheels/
 
 # Local data files
 data/*
-
-# Generated reports
-outputs/*

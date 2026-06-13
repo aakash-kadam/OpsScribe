@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from agents import TokenUsage
 
@@ -15,7 +14,6 @@ class ReportSectionSpec:
     id: str
     title: str
     prompt: str
-    output_format: str = "markdown"
 
 
 @dataclass(frozen=True)
@@ -24,7 +22,6 @@ class ReportSpec:
 
     title: str
     sections: list[ReportSectionSpec]
-    output_name: str = "report"
 
 
 @dataclass(frozen=True)
@@ -44,8 +41,6 @@ class ReportResult:
     title: str
     sections: list[ReportSectionResult]
     dataset_overview: str
-    output_dir: Path
-    output_name: str
 
     @property
     def token_usage(self) -> TokenUsage:

@@ -9,12 +9,10 @@ import yaml
 
 from agents import dataset_overview, run_cases_agent
 from csv_parser import DEFAULT_DATA_DIR, load_cases_data
-from document_writer import write_docx_report, write_markdown_report, write_pdf_report
 from report_models import ReportResult, ReportSectionResult, ReportSectionSpec, ReportSpec
 
 
 DEFAULT_REPORT_SPEC = Path("report_specs/ops_manager_q2.yaml")
-DEFAULT_OUTPUT_DIR = Path("outputs")
 
 
 def load_report_spec(spec_path: Path = DEFAULT_REPORT_SPEC) -> ReportSpec:
@@ -28,7 +26,6 @@ def load_report_spec(spec_path: Path = DEFAULT_REPORT_SPEC) -> ReportSpec:
 
     return ReportSpec(
         title=str(raw_spec.get("title") or "OpsScribe Report"),
-        output_name=str(raw_spec.get("output_name") or "report"),
         sections=[parse_section(section) for section in sections],
     )
 
@@ -44,7 +41,6 @@ def parse_section(section: dict[str, Any]) -> ReportSectionSpec:
         id=str(section["id"]),
         title=str(section["title"]),
         prompt=str(section["prompt"]),
-        output_format=str(section.get("output_format") or "markdown"),
     )
 
 
@@ -76,7 +72,6 @@ def render_report_markdown(report: ReportResult) -> str:
 def run_report(
     spec_path: Path = DEFAULT_REPORT_SPEC,
     data_path: Path = DEFAULT_DATA_DIR,
-    output_dir: Path = DEFAULT_OUTPUT_DIR,
 ) -> ReportResult:
     """Generate each report section with the agent."""
     spec = load_report_spec(spec_path)
@@ -98,33 +93,7 @@ def run_report(
         title=spec.title,
         sections=section_results,
         dataset_overview=dataset_overview(df),
-        output_dir=output_dir,
-        output_name=spec.output_name,
     )
-
-
-def write_report_outputs(report: ReportResult, formats: list[str]) -> list[Path]:
-    """Write a report to the requested output formats."""
-    report.output_dir.mkdir(parents=True, exist_ok=True)
-    markdown = render_report_markdown(report)
-    output_paths = []
-
-    for output_format in formats:
-        output_format = output_format.lower()
-        output_path = report.output_dir / f"{report.output_name}.{output_format}"
-
-        if output_format == "md":
-            write_markdown_report(markdown, output_path)
-        elif output_format == "docx":
-            write_docx_report(markdown, output_path)
-        elif output_format == "pdf":
-            write_pdf_report(markdown, output_path)
-        else:
-            raise ValueError(f"Unsupported output format: {output_format}")
-
-        output_paths.append(output_path)
-
-    return output_paths
 
 
 def describe_report_plan(spec_path: Path, data_path: Path) -> str:

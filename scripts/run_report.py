@@ -9,14 +9,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from csv_parser import DEFAULT_DATA_DIR
+from agents import dataset_overview, run_cases_agent
+from csv_parser import DEFAULT_DATA_DIR, load_cases_data
 from report_runner import (
-    DEFAULT_OUTPUT_DIR,
     DEFAULT_REPORT_SPEC,
     describe_report_plan,
-    run_report,
-    write_report_outputs,
+    load_report_spec,
 )
+
+
+def emit(text: str = "") -> None:
+    print(text, flush=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,20 +37,6 @@ def parse_args() -> argparse.Namespace:
         help="CSV file or folder of CSV files to analyze (default: data).",
     )
     parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help="Directory for generated reports (default: outputs).",
-    )
-    parser.add_argument(
-        "--format",
-        dest="formats",
-        action="append",
-        choices=["md", "docx", "pdf"],
-        default=None,
-        help="Output format to write. Repeat for multiple formats. Default: md.",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show the report plan without calling the LLM.",
@@ -59,26 +48,36 @@ def main() -> None:
     args = parse_args()
 
     if args.dry_run:
-        print(describe_report_plan(args.spec, args.data_path))
+        emit(describe_report_plan(args.spec, args.data_path))
         return
 
-    report = run_report(
-        spec_path=args.spec,
-        data_path=args.data_path,
-        output_dir=args.output_dir,
-    )
-    output_paths = write_report_outputs(report, args.formats or ["md"])
+    spec = load_report_spec(args.spec)
+    df = load_cases_data(args.data_path)
+    total_input_tokens = 0
+    total_output_tokens = 0
+    total_tokens = 0
 
-    print("Generated report outputs:")
-    for output_path in output_paths:
-        print(output_path)
+    emit(f"# {spec.title}\n")
+    emit("## Dataset Overview\n")
+    emit("```text")
+    emit(dataset_overview(df))
+    emit("```\n")
 
-    usage = report.token_usage
-    if usage.available:
-        print("\nToken usage:")
-        print(f"Input tokens: {usage.input_tokens}")
-        print(f"Output tokens: {usage.output_tokens}")
-        print(f"Total tokens: {usage.total_tokens}")
+    for section in spec.sections:
+        response = run_cases_agent(section.prompt, df=df)
+        emit(f"## {section.title}\n")
+        emit(response.answer.strip())
+        emit()
+
+        total_input_tokens += response.token_usage.input_tokens
+        total_output_tokens += response.token_usage.output_tokens
+        total_tokens += response.token_usage.total_tokens
+
+    if total_tokens:
+        emit("## Token Usage\n")
+        emit(f"Input tokens: {total_input_tokens}")
+        emit(f"Output tokens: {total_output_tokens}")
+        emit(f"Total tokens: {total_tokens}")
 
 
 if __name__ == "__main__":

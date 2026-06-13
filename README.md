@@ -66,7 +66,7 @@ export AI_KEY="your-api-key"
 export AI_MODEL="gpt-5.5"
 ```
 
-`AI_BASE_URL` is also accepted as an alias for `AI_ENDPOINT`.
+`AI_BASE_URL` is also accepted as an alias for `AI_ENDPOINT`. `GROVE_API_KEY` is also accepted as an alias for `AI_KEY`.
 
 Run the LangChain agent:
 
@@ -80,9 +80,15 @@ Run a data-only check without calling the LLM:
 uv run python scripts/analyze_cases_agent.py --dry-run
 ```
 
-## Generate A Report
+## Run The YAML Analysis Pipeline
 
-Report sections are defined in YAML under `report_specs/`.
+Report analysis sections are defined in YAML under `report_specs/`.
+
+The pipeline is:
+
+```text
+data/*.csv -> csv_parser.py -> report_specs/*.yaml -> agents.py -> stdout
+```
 
 Preview the report plan without calling the LLM:
 
@@ -90,19 +96,17 @@ Preview the report plan without calling the LLM:
 uv run python scripts/run_report.py --dry-run
 ```
 
-Generate the default markdown report:
+Run the default analysis spec and print the generated report to stdout:
 
 ```bash
-AI_KEY="your-api-key" uv run python scripts/run_report.py
+uv run python scripts/run_report.py
 ```
 
-Generate markdown, Word, and PDF outputs:
+Use a different YAML spec or data path:
 
 ```bash
-AI_KEY="your-api-key" uv run python scripts/run_report.py --format md --format docx --format pdf
+uv run python scripts/run_report.py --spec report_specs/ops_manager_q2.yaml --data-path data
 ```
-
-Generated reports are written to `outputs/`, which is ignored by git.
 
 Optional environment variables:
 
@@ -117,7 +121,7 @@ export AI_TEMPERATURE="0.2"
 
 The agent uses a generic LangChain `BaseChatModel` wrapper over HTTP. It auto-detects `/responses` endpoints and sends Responses-style `input` payloads; otherwise it sends chat-style `messages` payloads.
 
-Use `AI_KEY_HEADER` when your provider or gateway requires the API key in a custom header such as `api-key` or `Ocp-Apim-Subscription-Key`. If omitted, the key is sent as `Authorization: Bearer <AI_KEY>`.
+Use `AI_KEY_HEADER` when your provider or gateway requires a different API key header. If omitted, the key is sent as `api-key: <AI_KEY>`.
 
 Use `AI_PAYLOAD_FORMAT=responses` or `AI_PAYLOAD_FORMAT=messages` to override auto-detection.
 
@@ -126,13 +130,12 @@ Use `AI_PAYLOAD_FORMAT=responses` or `AI_PAYLOAD_FORMAT=messages` to override au
 ```text
 agents.py                       # LangChain agent and pandas-backed tools
 csv_parser.py                   # CSV parsing and DataFrame loading
-document_writer.py              # Markdown, DOCX, and PDF report writers
 report_models.py                # Report dataclasses
-report_runner.py                # YAML-driven report orchestration
+report_runner.py                # YAML-driven analysis orchestration
 report_specs/                   # YAML report section prompts
 scripts/analyze_cases_agent.py  # CLI for running one agent prompt
 scripts/parse_csv.py            # CLI for inspecting parsed CSV data
-scripts/run_report.py           # CLI for generating reports
+scripts/run_report.py           # CLI for running YAML analysis to stdout
 scripts/stress_test_csv_parser.py # Generated-data stress test for csv_parser.py
 ```
 
