@@ -9,8 +9,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents import dataset_overview, run_cases_agent
+from agents import aha_ideas_overview, dataset_overview, run_cases_agent
 from csv_parser import DEFAULT_DATA_DIR, load_cases_data
+from json_parser import load_aha_ideas_for_data_path
 from report_runner import (
     DEFAULT_REPORT_SPEC,
     describe_report_plan,
@@ -37,6 +38,11 @@ def parse_args() -> argparse.Namespace:
         help="CSV file or folder of CSV files to analyze (default: data).",
     )
     parser.add_argument(
+        "--include-aha-ideas",
+        action="store_true",
+        help="Load Aha ideas JSON data and expose it to the agent.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show the report plan without calling the LLM.",
@@ -48,11 +54,18 @@ def main() -> None:
     args = parse_args()
 
     if args.dry_run:
-        emit(describe_report_plan(args.spec, args.data_path))
+        try:
+            emit(describe_report_plan(args.spec, args.data_path, include_aha_ideas=args.include_aha_ideas))
+        except FileNotFoundError as error:
+            raise SystemExit(str(error)) from error
         return
 
     spec = load_report_spec(args.spec)
     df = load_cases_data(args.data_path)
+    try:
+        ideas_df = load_aha_ideas_for_data_path(args.data_path) if args.include_aha_ideas else None
+    except FileNotFoundError as error:
+        raise SystemExit(str(error)) from error
     total_input_tokens = 0
     total_output_tokens = 0
     total_tokens = 0
@@ -63,8 +76,14 @@ def main() -> None:
     emit(dataset_overview(df))
     emit("```\n")
 
+    if ideas_df is not None:
+        emit("## Aha Ideas Overview\n")
+        emit("```text")
+        emit(aha_ideas_overview(ideas_df))
+        emit("```\n")
+
     for section in spec.sections:
-        response = run_cases_agent(section.prompt, df=df)
+        response = run_cases_agent(section.prompt, df=df, ideas_df=ideas_df)
         emit(f"## {section.title}\n")
         emit(response.answer.strip())
         emit()

@@ -21,6 +21,7 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic import Field
 
 from csv_parser import DEFAULT_DATA_DIR, load_cases_data
+from json_parser import load_aha_ideas_data
 
 
 load_dotenv()
@@ -427,6 +428,23 @@ def dataset_overview(df: pd.DataFrame) -> str:
     )
 
 
+def aha_ideas_overview(df: pd.DataFrame) -> str:
+    """Return a compact overview of loaded Aha ideas."""
+    lines = [f"Rows: {len(df)}", f"Columns: {len(df.columns)}"]
+
+    if "source_file" in df.columns:
+        lines.extend(["", "Source files:", df["source_file"].value_counts().to_string()])
+
+    if "idea_id" in df.columns:
+        lines.extend(["", f"Unique idea IDs: {df['idea_id'].nunique()}"])
+
+    missing_values = df.isna().sum().sort_values(ascending=False).head(8)
+    if not missing_values.empty:
+        lines.extend(["", "Top missing-value columns:", missing_values.to_string()])
+
+    return "\n".join(lines)
+
+
 def _records_as_text(df: pd.DataFrame, limit: int) -> str:
     columns = [column for column in ANALYSIS_COLUMNS if column in df.columns]
     return df[columns].head(limit).to_json(orient="records", date_format="iso")
@@ -486,12 +504,66 @@ def build_case_analysis_tools(df: pd.DataFrame) -> list[Any]:
     return [get_dataset_overview, group_cases_by, search_cases]
 
 
-def build_cases_agent(df: pd.DataFrame | None = None, data_path: Path = DEFAULT_DATA_DIR) -> Any:
-    """Create a LangChain agent for analyzing case data."""
+def build_aha_ideas_tools(df: pd.DataFrame) -> list[Any]:
+    """Build LangChain tools backed by the Aha ideas DataFrame."""
+
+    @tool
+    def get_aha_ideas_overview() -> str:
+        """Get row counts, source files, idea counts, and missing-value summary for Aha ideas."""
+        return aha_ideas_overview(df)
+
+    @tool
+    def search_aha_ideas(query: str, limit: int = 5) -> str:
+        """Search Aha idea titles and descriptions and return matching ideas as JSON."""
+        query = query.strip()
+        if not query:
+            return "Query cannot be empty."
+
+        searchable_columns = [column for column in ("idea_id", "title", "description", "url") if column in df.columns]
+        if not searchable_columns:
+            return "No searchable Aha idea columns are available."
+
+        mask = pd.Series(False, index=df.index)
+        for column in searchable_columns:
+            mask = mask | df[column].fillna("").astype(str).str.contains(query, case=False, regex=False)
+
+        matches = df[mask]
+        if matches.empty:
+            return f"No Aha ideas matched query: {query}"
+
+        output_columns = [column for column in ("idea_id", "title", "description", "url") if column in matches.columns]
+        return matches[output_columns].head(limit).to_json(orient="records")
+
+    @tool
+    def get_aha_idea_by_id(idea_id: str) -> str:
+        """Return one Aha idea by ID, such as FF-I-13638."""
+        if "idea_id" not in df.columns:
+            return "Aha ideas data does not include an idea_id column."
+
+        matches = df[df["idea_id"].fillna("").str.casefold() == idea_id.strip().casefold()]
+        if matches.empty:
+            return f"No Aha idea found for ID: {idea_id}"
+
+        output_columns = [column for column in ("idea_id", "title", "description", "url") if column in matches.columns]
+        return matches[output_columns].head(1).to_json(orient="records")
+
+    return [get_aha_ideas_overview, search_aha_ideas, get_aha_idea_by_id]
+
+
+def build_cases_agent(
+    df: pd.DataFrame | None = None,
+    ideas_df: pd.DataFrame | None = None,
+    data_path: Path = DEFAULT_DATA_DIR,
+    ideas_path: Path = DEFAULT_DATA_DIR,
+) -> Any:
+    """Create a LangChain agent for analyzing case data and optional Aha ideas."""
     if df is None:
         df = load_cases_data(data_path)
 
     tools = build_case_analysis_tools(df)
+    if ideas_df is not None:
+        tools += build_aha_ideas_tools(ideas_df)
+
     model = build_chat_model()
 
     return create_agent(
@@ -500,8 +572,9 @@ def build_cases_agent(df: pd.DataFrame | None = None, data_path: Path = DEFAULT_
         system_prompt=(
             "You are an operations support data analyst. Use the provided pandas-backed "
             "tools to analyze case trends, root causes, severity distribution, accounts, "
-            "components, triage components, and case summaries. Cite counts from tools "
-            "instead of guessing."
+            "components, triage components, and case summaries. If Aha idea tools are "
+            "available, use them to connect support pain points to product feedback. "
+            "Cite counts and idea IDs from tools instead of guessing."
         ),
     )
 
@@ -509,10 +582,12 @@ def build_cases_agent(df: pd.DataFrame | None = None, data_path: Path = DEFAULT_
 def run_cases_agent(
     question: str,
     df: pd.DataFrame | None = None,
+    ideas_df: pd.DataFrame | None = None,
     data_path: Path = DEFAULT_DATA_DIR,
+    ideas_path: Path = DEFAULT_DATA_DIR,
 ) -> AgentResponse:
     """Run one question against the cases agent and return answer plus token usage."""
-    agent = build_cases_agent(df=df, data_path=data_path)
+    agent = build_cases_agent(df=df, ideas_df=ideas_df, data_path=data_path, ideas_path=ideas_path)
     result = agent.invoke({"messages": [{"role": "user", "content": question}]})
     return AgentResponse(
         answer=result["messages"][-1].content,
@@ -523,7 +598,9 @@ def run_cases_agent(
 def ask_cases_agent(
     question: str,
     df: pd.DataFrame | None = None,
+    ideas_df: pd.DataFrame | None = None,
     data_path: Path = DEFAULT_DATA_DIR,
+    ideas_path: Path = DEFAULT_DATA_DIR,
 ) -> str:
     """Run one question against the cases agent and return the final response text."""
-    return run_cases_agent(question, df=df, data_path=data_path).answer
+    return run_cases_agent(question, df=df, ideas_df=ideas_df, data_path=data_path, ideas_path=ideas_path).answer

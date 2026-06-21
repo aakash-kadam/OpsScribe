@@ -74,6 +74,18 @@ Run the LangChain agent:
 uv run python scripts/analyze_cases_agent.py "Summarize the major support case trends."
 ```
 
+Include Aha ideas from JSON as an additional agent data source:
+
+```bash
+uv run python scripts/analyze_cases_agent.py "Find Aha ideas related to backup pain points." --include-aha-ideas
+```
+
+When this flag is used, the app expects this file to exist:
+
+```text
+data/aha_ideas.json
+```
+
 Run a data-only check without calling the LLM:
 
 ```bash
@@ -108,6 +120,20 @@ Use a different YAML spec or data path:
 uv run python scripts/run_report.py --spec report_specs/ops_manager_q2.yaml --data-path data
 ```
 
+Include Aha ideas from `data/*.json` in the YAML analysis run:
+
+```bash
+uv run python scripts/run_report.py --spec report_specs/ops_manager_q2.yaml --data-path data --include-aha-ideas
+```
+
+When `--include-aha-ideas` is provided, the app looks for `aha_ideas.json` inside the `--data-path` directory and exposes Aha-specific tools to inspect idea counts, search idea titles/descriptions, and fetch ideas by ID.
+
+For example, with `--data-path data`, Aha ideas are loaded from:
+
+```text
+data/aha_ideas.json
+```
+
 Optional environment variables:
 
 ```bash
@@ -130,11 +156,13 @@ Use `AI_PAYLOAD_FORMAT=responses` or `AI_PAYLOAD_FORMAT=messages` to override au
 ```text
 agents.py                       # LangChain agent and pandas-backed tools
 csv_parser.py                   # CSV parsing and DataFrame loading
+json_parser.py                  # JSON parsing and DataFrame loading
 report_models.py                # Report dataclasses
 report_runner.py                # YAML-driven analysis orchestration
 report_specs/                   # YAML report section prompts
 scripts/analyze_cases_agent.py  # CLI for running one agent prompt
 scripts/parse_csv.py            # CLI for inspecting parsed CSV data
+scripts/parse_json.py           # CLI for inspecting parsed JSON data
 scripts/run_report.py           # CLI for running YAML analysis to stdout
 scripts/stress_test_csv_parser.py # Generated-data stress test for csv_parser.py
 ```

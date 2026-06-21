@@ -7,8 +7,9 @@ from typing import Any
 
 import yaml
 
-from agents import dataset_overview, run_cases_agent
+from agents import aha_ideas_overview, dataset_overview, run_cases_agent
 from csv_parser import DEFAULT_DATA_DIR, load_cases_data
+from json_parser import load_aha_ideas_for_data_path
 from report_models import ReportResult, ReportSectionResult, ReportSectionSpec, ReportSpec
 
 
@@ -72,14 +73,16 @@ def render_report_markdown(report: ReportResult) -> str:
 def run_report(
     spec_path: Path = DEFAULT_REPORT_SPEC,
     data_path: Path = DEFAULT_DATA_DIR,
+    include_aha_ideas: bool = False,
 ) -> ReportResult:
     """Generate each report section with the agent."""
     spec = load_report_spec(spec_path)
     df = load_cases_data(data_path)
+    ideas_df = load_aha_ideas_for_data_path(data_path) if include_aha_ideas else None
     section_results = []
 
     for section in spec.sections:
-        response = run_cases_agent(section.prompt, df=df)
+        response = run_cases_agent(section.prompt, df=df, ideas_df=ideas_df)
         section_results.append(
             ReportSectionResult(
                 id=section.id,
@@ -96,11 +99,19 @@ def run_report(
     )
 
 
-def describe_report_plan(spec_path: Path, data_path: Path) -> str:
+def describe_report_plan(
+    spec_path: Path,
+    data_path: Path,
+    include_aha_ideas: bool = False,
+) -> str:
     """Describe what a report run would do without calling the LLM."""
     spec = load_report_spec(spec_path)
     df = load_cases_data(data_path)
     lines = [f"Report: {spec.title}", "", dataset_overview(df), "", "Sections:"]
+
+    if include_aha_ideas:
+        ideas_df = load_aha_ideas_for_data_path(data_path)
+        lines[3:3] = ["Aha Ideas Overview", aha_ideas_overview(ideas_df), ""]
 
     for index, section in enumerate(spec.sections, start=1):
         lines.append(f"{index}. {section.title} ({section.id})")
