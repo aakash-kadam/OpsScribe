@@ -1,5 +1,10 @@
 title: FY2027 Q2 Ops Manager Case Analysis
 
+# Optional prompt template values when scripts/run_report.py is called with
+# --start-date and --end-date:
+#   {start_date} - ISO formatted start datetime
+#   {end_date}   - ISO formatted end datetime
+
 sections:
   - id: executive_summary
     title: Executive Summary
@@ -11,33 +16,16 @@ sections:
   - id: severity_analysis
     title: Severity Analysis
     prompt: |
-      Analyze case volume by severity.
+      Analyze case volume by severity from {start_date} to {end_date}
       Identify which severities dominate, whether high-severity cases deserve separate attention, and what this implies operationally.
       Include specific counts from the tools.
 
-  - id: root_cause_analysis
-    title: Root Cause Analysis
+  - id: customer_leaderboard
+    title: Customer Case LeaderBoard 
     prompt: |
-      Analyze the most common root causes.
-      Separate product defects from configuration, usage, environment, or process issues where possible.
-      Include counts and explain what the root-cause mix suggests.
+      Create a customer/account leaderboard from the date range {start_date} to {end_date}.
+      The table counts the number of cases opened by each customer and show the top 5 customers/accounts which have opened a case within the date range. Also add the most observed case components column with comma separated list for multiple entries, keep it at 3 component limit 
 
-  - id: component_analysis
-    title: Component And Triage Component Analysis
-    prompt: |
-      Analyze case distribution by Components and Triage Components.
-      Components and Triage Components are list fields; count each item independently.
-      Identify the most problematic areas and explain what patterns stand out.
+ 
 
-  - id: customer_impact
-    title: Customer Impact Themes
-    prompt: |
-      Identify recurring customer impact themes from subjects, AI case summaries, resolutions, account names, components, and severity.
-      Highlight examples of operational pain points without overfitting to individual cases.
-
-  - id: recommendations
-    title: Recommendations
-    prompt: |
-      Provide practical recommendations based on the dataset.
-      Include product, documentation, support process, monitoring, and triage recommendations where supported by the data.
-      Make recommendations specific and action-oriented.
+ 

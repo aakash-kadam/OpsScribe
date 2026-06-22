@@ -114,6 +114,29 @@ Run the default analysis spec and print the generated report to stdout:
 uv run python scripts/run_report.py
 ```
 
+Run the report for a specific inclusive case-opened date range:
+
+```bash
+uv run python scripts/run_report.py --start-date 2026-02-01 --end-date 2026-04-30
+```
+
+When a date range is provided, case data is filtered by `date_time_opened`, and YAML prompts can optionally use these placeholders:
+
+```text
+{start_date}
+{end_date}
+```
+
+Example YAML prompt:
+
+```yaml
+prompt: |
+  Analyze support cases opened from {start_date} through {end_date}.
+  Include severity counts and operational implications.
+```
+
+If no date range is provided, prompts are used exactly as written.
+
 Use a different YAML spec or data path:
 
 ```bash

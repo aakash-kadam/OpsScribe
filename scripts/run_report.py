@@ -15,7 +15,10 @@ from json_parser import load_aha_ideas_for_data_path
 from report_runner import (
     DEFAULT_REPORT_SPEC,
     describe_report_plan,
+    date_context,
+    filter_cases_by_date_range,
     load_report_spec,
+    render_prompt,
 )
 
 
@@ -43,6 +46,14 @@ def parse_args() -> argparse.Namespace:
         help="Load Aha ideas JSON data and expose it to the agent.",
     )
     parser.add_argument(
+        "--start-date",
+        help="Optional inclusive start date for filtering cases and templating prompts.",
+    )
+    parser.add_argument(
+        "--end-date",
+        help="Optional inclusive end date for filtering cases and templating prompts.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show the report plan without calling the LLM.",
@@ -55,13 +66,26 @@ def main() -> None:
 
     if args.dry_run:
         try:
-            emit(describe_report_plan(args.spec, args.data_path, include_aha_ideas=args.include_aha_ideas))
-        except FileNotFoundError as error:
+            emit(
+                describe_report_plan(
+                    args.spec,
+                    args.data_path,
+                    include_aha_ideas=args.include_aha_ideas,
+                    start_date=args.start_date,
+                    end_date=args.end_date,
+                )
+            )
+        except (FileNotFoundError, ValueError) as error:
             raise SystemExit(str(error)) from error
         return
 
     spec = load_report_spec(args.spec)
-    df = load_cases_data(args.data_path)
+    try:
+        template_values = date_context(args.start_date, args.end_date)
+        df = filter_cases_by_date_range(load_cases_data(args.data_path), args.start_date, args.end_date)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
+
     try:
         ideas_df = load_aha_ideas_for_data_path(args.data_path) if args.include_aha_ideas else None
     except FileNotFoundError as error:
@@ -76,6 +100,12 @@ def main() -> None:
     emit(dataset_overview(df))
     emit("```\n")
 
+    if template_values:
+        emit("## Date Range\n")
+        emit(f"start_date: {template_values['start_date']}")
+        emit(f"end_date: {template_values['end_date']}")
+        emit()
+
     if ideas_df is not None:
         emit("## Aha Ideas Overview\n")
         emit("```text")
@@ -83,7 +113,7 @@ def main() -> None:
         emit("```\n")
 
     for section in spec.sections:
-        response = run_cases_agent(section.prompt, df=df, ideas_df=ideas_df)
+        response = run_cases_agent(render_prompt(section.prompt, template_values), df=df, ideas_df=ideas_df)
         emit(f"## {section.title}\n")
         emit(response.answer.strip())
         emit()
