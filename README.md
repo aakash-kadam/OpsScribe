@@ -157,6 +157,24 @@ For example, with `--data-path data`, Aha ideas are loaded from:
 data/aha_ideas.json
 ```
 
+Write the generated report to a Word document:
+
+```bash
+uv run python scripts/write_report_docx.py --output report.docx
+```
+
+The DOCX writer supports the same report options:
+
+```bash
+uv run python scripts/write_report_docx.py \
+  --spec report_specs/ops_manager_q2.yaml \
+  --data-path data \
+  --include-aha-ideas \
+  --start-date 2026-02-01 \
+  --end-date 2026-04-30 \
+  --output report.docx
+```
+
 Optional environment variables:
 
 ```bash
@@ -179,6 +197,7 @@ Use `AI_PAYLOAD_FORMAT=responses` or `AI_PAYLOAD_FORMAT=messages` to override au
 ```text
 agents.py                       # LangChain agent and pandas-backed tools
 csv_parser.py                   # CSV parsing and DataFrame loading
+docx_writer.py                  # Word document writer for generated reports
 json_parser.py                  # JSON parsing and DataFrame loading
 report_models.py                # Report dataclasses
 report_runner.py                # YAML-driven analysis orchestration
@@ -188,6 +207,7 @@ scripts/parse_csv.py            # CLI for inspecting parsed CSV data
 scripts/parse_json.py           # CLI for inspecting parsed JSON data
 scripts/run_report.py           # CLI for running YAML analysis to stdout
 scripts/stress_test_csv_parser.py # Generated-data stress test for csv_parser.py
+scripts/write_report_docx.py    # CLI for writing generated reports to DOCX
 ```
 
 ## Token Usage

@@ -16,3 +16,7 @@ wheels/
 
 # Local data files
 data/*
+
+# Generated reports
+*.docx
+report.md
