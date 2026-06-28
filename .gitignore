@@ -20,3 +20,4 @@ data/*
 # Generated reports
 *.docx
 report.md
+outputs/*
