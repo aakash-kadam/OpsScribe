@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from collections.abc import Sequence
 
 from docx import Document
+from docx.shared import Inches
 from docx.text.paragraph import Paragraph
 from docx.shared import Pt
 
@@ -118,13 +120,23 @@ def add_markdownish_content(document: Document, content: str) -> None:
         index += 1
 
 
-def write_report_docx(report: ReportResult, output_path: Path) -> None:
+def add_graphs(document: Document, graph_paths: Sequence[Path]) -> None:
+    """Add graph images to the document under a visual summary section."""
+    if not graph_paths:
+        return
+
+    document.add_heading("Visual Case summarization", level=1)
+    for graph_path in graph_paths:
+        title = graph_path.stem.replace("_", " ").title()
+        document.add_paragraph(title)
+        document.add_picture(str(graph_path), width=Inches(6.5))
+
+
+def write_report_docx(report: ReportResult, output_path: Path, graph_paths: Sequence[Path] | None = None) -> None:
     """Write a generated report to a DOCX file."""
     document = Document()
     document.add_heading(report.title, level=0)
-
-    document.add_heading("Dataset Overview", level=1)
-    add_markdownish_content(document, report.dataset_overview)
+    add_graphs(document, graph_paths or [])
 
     for section in report.sections:
         document.add_heading(section.title, level=1)

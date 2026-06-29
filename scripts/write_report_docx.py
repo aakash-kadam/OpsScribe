@@ -47,6 +47,11 @@ def parse_args() -> argparse.Namespace:
         default=Path("report.docx"),
         help="Output DOCX path (default: report.docx).",
     )
+    parser.add_argument(
+        "--graphs-dir",
+        type=Path,
+        help="Optional directory of PNG graphs to embed in the DOCX.",
+    )
     return parser.parse_args()
 
 
@@ -64,8 +69,18 @@ def main() -> None:
     except (FileNotFoundError, RuntimeError, ValueError) as error:
         raise SystemExit(str(error)) from error
 
-    write_report_docx(report, args.output)
+    graph_paths = []
+    if args.graphs_dir:
+        if not args.graphs_dir.exists():
+            raise SystemExit(f"Graphs directory not found: {args.graphs_dir}")
+        graph_paths = sorted(args.graphs_dir.rglob("*.png"))
+        if not graph_paths:
+            raise SystemExit(f"No PNG graphs found under: {args.graphs_dir}")
+
+    write_report_docx(report, args.output, graph_paths=graph_paths)
     print(f"Wrote DOCX report to: {args.output}")
+    if graph_paths:
+        print(f"Embedded {len(graph_paths)} graph(s) from: {args.graphs_dir}")
 
 
 if __name__ == "__main__":
